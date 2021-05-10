@@ -6,7 +6,7 @@ use Astrotomic\ISO639\ISO639;
 use OutOfBoundsException;
 use PHPUnit\Framework\TestCase;
 
-class ISO3166Test extends TestCase
+class ISO639Test extends TestCase
 {
     /** @var \Astrotomic\ISO639\ISO639 */
     public $iso639;
@@ -109,7 +109,7 @@ class ISO3166Test extends TestCase
         $this->assertSame($this->iso639->count(), $i);
     }
 
-    public function test_iterate_by():void
+    public function test_iterate_by(): void
     {
         $i = 0;
         foreach ($this->iso639->iterator(ISO639::KEY_639_1) as $key => $language) {
