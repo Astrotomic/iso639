@@ -34,6 +34,11 @@ class ISO639 implements Countable, IteratorAggregate
         return $this->lookup(self::KEY_NAME, $name);
     }
 
+    public function alpha2(string $code): array
+    {
+        return $this->iso639_1($code);
+    }
+
     public function iso639_1(string $code): array
     {
         return $this->lookup(self::KEY_639_1, $code);
@@ -49,9 +54,17 @@ class ISO639 implements Countable, IteratorAggregate
         return $this->lookup(self::KEY_639_2B, $code);
     }
 
-    public function all(): array
+    public function all(?string $key = null): array
     {
-        return $this->languages;
+        if ($key === null) {
+            return $this->languages;
+        }
+
+        if (! in_array($key, self::KEYS, true)) {
+            throw new InvalidArgumentException(sprintf('Invalid value for $key, got "%s", expected one of: %s', $key, implode(', ', self::KEYS)));
+        }
+
+        return array_column($this->languages, $key);
     }
 
     public function iterator(string $indexBy = self::KEY_639_1): Generator

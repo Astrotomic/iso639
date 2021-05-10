@@ -1,6 +1,6 @@
 {
     "name": "astrotomic/iso639",
-    "description": "ISO-639 PHP Library",
+    "description": "A PHP library providing ISO 639-1 data.",
     "keywords": [
         "ISO 639",
         "ISO-639",
