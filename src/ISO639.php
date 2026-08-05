@@ -6,7 +6,12 @@ use Countable;
 use Generator;
 use InvalidArgumentException;
 use IteratorAggregate;
+use Locale;
+use Normalizer;
 use OutOfBoundsException;
+use ResourceBundle;
+use RuntimeException;
+use Transliterator;
 
 class ISO639 implements Countable, IteratorAggregate
 {
@@ -24,14 +29,90 @@ class ISO639 implements Countable, IteratorAggregate
 
     protected array $languages;
 
-    public function __construct(?array $languages = null)
+    /** @var array<string, string> */
+    private array $aliases;
+
+    /** @var array<string, array|null>|null */
+    private ?array $localizedNames = null;
+
+    private Transliterator $lowercase;
+
+    /**
+     * @param array|null $languages
+     * @param array<string, string> $aliases map aliases to ISO 639-1 codes
+     */
+    public function __construct(?array $languages = null, array $aliases = [])
     {
         $this->languages = $languages ?? self::LANGUAGES;
+        $this->aliases = [];
+        $this->initializeLowercase();
+
+        foreach ($aliases as $alias => $alpha2) {
+            $this->aliases[$this->normalize($alias)] = $alpha2;
+        }
+    }
+
+    public function __serialize(): array
+    {
+        return [
+            'languages' => $this->languages,
+            'aliases' => $this->aliases,
+        ];
+    }
+
+    public function __unserialize(array $data): void
+    {
+        $this->languages = $data['languages'] ?? $data["\0*\0languages"];
+        $this->aliases = $data['aliases'] ?? [];
+        $this->localizedNames = null;
+        $this->initializeLowercase();
     }
 
     public function name(string $name): array
     {
-        return $this->lookup(self::KEY_NAME, $name);
+        $normalizedName = $this->normalize($name);
+
+        if (isset($this->aliases[$normalizedName])) {
+            return $this->alpha2($this->aliases[$normalizedName]);
+        }
+
+        try {
+            return $this->lookup(self::KEY_NAME, $name);
+        } catch (OutOfBoundsException $exception) {
+        }
+
+        $localizedNames = $this->localizedNames();
+
+        if (isset($localizedNames[$normalizedName])) {
+            return $localizedNames[$normalizedName];
+        }
+
+        throw new OutOfBoundsException(sprintf('No "%s" key found matching: %s', self::KEY_NAME, $name));
+    }
+
+    public function find(string $value): array
+    {
+        try {
+            return $this->iso639_1($value);
+        } catch (OutOfBoundsException $exception) {
+        }
+
+        try {
+            return $this->iso639_2B($value);
+        } catch (OutOfBoundsException $exception) {
+        }
+
+        try {
+            return $this->iso639_2T($value);
+        } catch (OutOfBoundsException $exception) {
+        }
+
+        try {
+            return $this->name($value);
+        } catch (OutOfBoundsException $exception) {
+        }
+
+        throw new OutOfBoundsException(sprintf('No language found matching: %s', $value));
     }
 
     public function alpha2(string $code): array
@@ -93,12 +174,74 @@ class ISO639 implements Countable, IteratorAggregate
     protected function lookup($key, $value): array
     {
         foreach ($this->languages as $language) {
-            if (strcasecmp($value, $language[$key]) === 0) {
+            $matches = $key === self::KEY_NAME
+                ? $this->normalize($value) === $this->normalize($language[$key])
+                : strcasecmp($value, $language[$key]) === 0;
+
+            if ($matches) {
                 return $language;
             }
         }
 
         throw new OutOfBoundsException(sprintf('No "%s" key found matching: %s', $key, $value));
+    }
+
+    /** @return array<string, array|null> */
+    private function localizedNames(): array
+    {
+        if ($this->localizedNames !== null) {
+            return $this->localizedNames;
+        }
+
+        $this->localizedNames = [];
+        $locales = ResourceBundle::getLocales('');
+
+        if ($locales === false) {
+            return $this->localizedNames;
+        }
+
+        foreach ($this->languages as $language) {
+            foreach ($locales as $displayLocale) {
+                $localizedName = Locale::getDisplayLanguage($language[self::KEY_639_1], $displayLocale);
+
+                if ($localizedName === false || $localizedName === '') {
+                    continue;
+                }
+
+                $normalizedName = $this->normalize($localizedName);
+
+                if (! array_key_exists($normalizedName, $this->localizedNames)) {
+                    $this->localizedNames[$normalizedName] = $language;
+                } elseif (
+                    $this->localizedNames[$normalizedName] !== null
+                    && $this->localizedNames[$normalizedName][self::KEY_639_1] !== $language[self::KEY_639_1]
+                ) {
+                    $this->localizedNames[$normalizedName] = null;
+                }
+            }
+        }
+
+        return $this->localizedNames;
+    }
+
+    private function normalize(string $value): string
+    {
+        $value = trim($value);
+        $value = Normalizer::normalize($value) ?: $value;
+        $normalized = $this->lowercase->transliterate($value);
+
+        return $normalized !== false ? $normalized : strtolower($value);
+    }
+
+    private function initializeLowercase(): void
+    {
+        $lowercase = Transliterator::create('Any-Lower');
+
+        if ($lowercase === null) {
+            throw new RuntimeException('Unable to create the ICU lowercase transliterator.');
+        }
+
+        $this->lowercase = $lowercase;
     }
 
     protected const LANGUAGES = [

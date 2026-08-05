@@ -38,4 +38,20 @@ $iso639->alpha2('de');
 $iso639->iso639_1('de');
 $iso639->iso639_2B('ger');
 $iso639->iso639_2T('deu');
+
+// names localized by any ICU locale
+$iso639->name('Deutsch');
+$iso639->name('allemand');
+
+// aliases map to ISO 639-1 codes
+$iso639 = new ISO639(null, [
+    'German language' => 'de',
+]);
+$iso639->name('German language');
+
+// resolve any supported name or code, throwing exception when unknown
+$iso639->find('Deutsch');
+$iso639->find('de');
+$iso639->find('ger');
+$iso639->find('unknown'); // OutOfBoundsException
 ```
