@@ -37,7 +37,7 @@ class ISO639Test extends TestCase
 
     public function test_name_uses_lookup_extension_point(): void
     {
-        $iso639 = new class extends ISO639 {
+        $iso639 = new class() extends ISO639 {
             protected function lookup($key, $value): array
             {
                 return parent::lookup($key, $key === self::KEY_NAME ? 'German' : $value);
